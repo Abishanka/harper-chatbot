@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
 
@@ -8,25 +10,31 @@ export default function WorkspaceHeader({ workspaceId }: { workspaceId: string }
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const updateWorkspace = useCallback(async (workspaceId: string) => {
+    const { data, error } = await supabase
+      .from('workspaces')
+      .select('*')
+      .eq('id', workspaceId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching workspace from Supabase:', error);
+      return null;
+    }
+
+    return data;
+  }, []);
+
   useEffect(() => {
-    async function fetchWorkspace() {
-      const { data, error } = await supabase
-        .from('workspaces')
-        .select('*')
-        .eq('id', workspaceId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching workspace:', error);
-        return;
-      }
-
-      setWorkspace(data);
+    async function fetchAndSetWorkspace() {
+      setLoading(true);
+      const updatedWorkspace = await updateWorkspace(workspaceId);
+      setWorkspace(updatedWorkspace);
       setLoading(false);
     }
 
-    fetchWorkspace();
-  }, [workspaceId]);
+    fetchAndSetWorkspace();
+  }, [workspaceId, updateWorkspace]);
 
   if (loading) {
     return <div className="animate-pulse h-8 bg-gray-200 rounded w-48"></div>;

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
 import { useRouter } from 'next/navigation';
 import { UserButton, useUser } from '@clerk/clerk-react';
+import ChatInterface from '@/app/components/ChatInterface';
 
 type Media = Database['public']['Tables']['media']['Row'] & {
   size?: number;
@@ -14,6 +15,7 @@ type Media = Database['public']['Tables']['media']['Row'] & {
 type DataSource = {
   id: string;
   name: string;
+  original_name: string;
   size: string;
   addedDate: string;
 };
@@ -67,23 +69,46 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         setWorkspaces([workspacesData]);
 
         // Then fetch the media data for this workspace
-        const { data: mediaData, error: mediaError } = await supabase
-          .from('media')
-          .select('*')
-          .eq('workspace_id', resolvedParams.id)
-          .eq('owner_id', user.id);
+        const fetchMediaData = async (workspaceId: string, userId: string) => {
+          try {
+            // Step 1: Get media IDs associated with the workspace
+            const { data: mediaMapping, error: mappingError } = await supabase
+              .from('media_workspace_mapping')
+              .select('media_id')
+              .eq('workspace_id', workspaceId)
 
-        if (mediaError) {
-          console.error('Error fetching media:', mediaError);
-        } else {
-          const formattedDataSources: DataSource[] = (mediaData || []).map(media => ({
-            id: media.id,
-            name: media.name,
-            size: media.size?.toString() || 'Unknown',
-            addedDate: new Date(media.created_at).toLocaleDateString()
-          }));
-          setDataSources(formattedDataSources);
-        }
+            if (mappingError) throw mappingError;
+
+            const mediaIds = mediaMapping?.map((mapping: { media_id: string }) => mapping.media_id) || [];
+
+            // Step 2: Fetch media records using the media IDs
+            if (mediaIds.length > 0) {
+              const { data: mediaData, error: mediaError } = await supabase
+                .from('media')
+                .select('*')
+                .in('id', mediaIds)
+                .order('created_at', { ascending: false });
+
+              if (mediaError) throw mediaError;
+
+              const formattedDataSources: DataSource[] = (mediaData || []).map(media => ({
+                id: media.id,
+                name: media.name,
+                original_name: media.original_name,
+                size: media.size?.toString() || 'Unknown',
+                addedDate: new Date(media.created_at).toLocaleDateString()
+              }));
+
+              setDataSources(formattedDataSources);
+            } else {
+              setDataSources([]); // No media found for the workspace
+            }
+          } catch (error) {
+            console.error('Error fetching media:', error);
+          }
+        };
+
+        fetchMediaData(resolvedParams.id, user.id);
       } catch (error) {
         console.error('Error in fetchData:', error);
         setWorkspaceNotFound(true);
@@ -169,7 +194,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
               {dataSources.map((source) => (
                 <div key={source.id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-[#1a1a1a]">{source.name}</span>
+                    <span className="text-sm font-medium text-[#1a1a1a]">{source.original_name}</span>
                     <span className="text-xs text-gray-600">{source.size}</span>
                   </div>
                   <div className="mt-1 text-xs text-gray-600">Added {source.addedDate}</div>
@@ -187,43 +212,20 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
               </h2>
             </div>
 
-            {/* Chat Messages */}
-            <div className="flex-1 w-full max-w-3xl overflow-y-auto p-4 space-y-4 pb-8">
-              <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 rounded-full bg-[#ff6d63] flex items-center justify-center text-white">
-                  AI
-                </div>
-                <div className="flex-1 bg-white rounded-lg p-4 shadow-sm">
-                  <p className="text-[#1a1a1a]">Hello! I'm your AI assistant. I can help you analyze and discuss the data sources in this workspace. What would you like to know?</p>
-                </div>
-              </div>
-            </div>
+            {/* Chat Interface */}
+            <ChatInterface workspaceId={workspaceId} userId={user?.id || ''} />
 
-            {/* Chat Input */}
-            <div className="w-full max-w-3xl border border-gray-200 p-4 bg-white mb-4">
-              <div className="flex space-x-4">
-                <input
-                  type="text"
-                  placeholder="Type your message..."
-                  className="flex-1 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6d63] focus:border-transparent text-[#1a1a1a] placeholder-gray-400"
-                />
-                <button className="px-6 py-2 bg-[#ff6d63] text-white rounded-lg hover:bg-[#ff857c] transition-colors">
-                  Send
-                </button>
-              </div>
-            </div>
+            {/* Add Data Source Modal */}
+            {workspaceId && (
+              <AddDataSourceModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                existingSources={dataSources}
+                workspaceId={workspaceId}
+                onMediaAdded={onMediaAdded}
+              />
+            )}
           </div>
-
-          {/* Add Data Source Modal */}
-          {workspaceId && (
-            <AddDataSourceModal
-              isOpen={isModalOpen}
-              onClose={() => setIsModalOpen(false)}
-              existingSources={dataSources}
-              workspaceId={workspaceId}
-              onMediaAdded={onMediaAdded}
-            />
-          )}
         </>
       )}
     </div>

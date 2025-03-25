@@ -6,6 +6,14 @@ const openai = new OpenAI({
 });
 
 export async function POST(req: Request) {
+  if (!process.env.OPENAI_API_KEY) {
+    console.error('OpenAI API key is not defined. Please set the OPENAI_API_KEY environment variable.');
+    return NextResponse.json(
+      { status: 'error', message: 'OpenAI API key is not defined' },
+      { status: 401 }
+    );
+  }
+
   try {
     const { action, message } = await req.json();
 
@@ -34,9 +42,17 @@ export async function POST(req: Request) {
         );
     }
   } catch (error) {
-    console.error('OpenAI API error:', error);
+    const err = error as any;
+    if (err.response && err.response.status === 401) {
+      console.error('Authentication error: Invalid OpenAI API key');
+      return NextResponse.json(
+        { status: 'error', message: 'Authentication error: Invalid OpenAI API key' },
+        { status: 401 }
+      );
+    }
+    console.error('OpenAI API error:', err);
     return NextResponse.json(
-      { status: 'error', message: (error as Error).message },
+      { status: 'error', message: err.message },
       { status: 500 }
     );
   }

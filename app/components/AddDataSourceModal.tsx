@@ -51,14 +51,29 @@ export default function AddDataSourceModal({
         throw new Error('User not authenticated');
       }
 
-      const { data: media, error } = await supabaseClient
-        .from('media')
-        .select('*')
-        .eq('owner_id', userId)
-        .order('created_at', { ascending: false });
+      // Step 1: Get media IDs associated with the workspace
+      const { data: mediaMapping, error: mappingError } = await supabaseClient
+        .from('media_workspace_mapping')
+        .select('media_id')
+        .eq('workspace_id', workspaceId)
 
-      if (error) throw error;
-      setAvailableSources(media || []);
+      if (mappingError) throw mappingError;
+
+      const mediaIds = mediaMapping?.map((mapping: { media_id: string }) => mapping.media_id) || [];
+
+      // Step 2: Fetch media records using the media IDs
+      if (mediaIds.length > 0) {
+        const { data: media, error } = await supabaseClient
+          .from('media')
+          .select('*')
+          .in('id', mediaIds)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setAvailableSources(media || []);
+      } else {
+        setAvailableSources([]); // No media found for the workspace
+      }
     } catch (err) {
       console.error('Error fetching available sources:', err);
       setError('Failed to load available sources');
@@ -91,13 +106,12 @@ export default function AddDataSourceModal({
         throw new Error('User not authenticated');
       }
       
-      const supabaseClient = createClient();
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('workspaceId', workspaceId);
-      formData.append('userId', userId);
+      formData.append('owner_id', userId); // Use 'owner_id' as per your FastAPI code
+      formData.append('workspace_id', workspaceId); // Include workspaceId
 
-      const response = await fetch('/api/upload', {
+      const response = await fetch('http://24.45.173.113:8000/api/upload-file', { // Update to your FastAPI endpoint
         method: 'POST',
         body: formData,
       });
@@ -105,8 +119,8 @@ export default function AddDataSourceModal({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
 
-      onMediaAdded(result);
-      onClose();
+      onMediaAdded(result); // Call the callback to add the media
+      onClose(); // Close the modal
     } catch (err) {
       console.error('Error uploading file:', err);
       setError('Failed to upload file. Please try again.');

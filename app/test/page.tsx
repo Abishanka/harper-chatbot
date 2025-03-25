@@ -2,14 +2,18 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase';
+import { useClerk } from '@clerk/clerk-react';
 
 export default function TestPage() {
+  const { user } = useClerk();
   const [supabaseStatus, setSupabaseStatus] = useState<string>('');
   const [openaiStatus, setOpenaiStatus] = useState<string>('');
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [testFile, setTestFile] = useState<File | null>(null);
   const [chatMessage, setChatMessage] = useState('');
   const [chatResponse, setChatResponse] = useState('');
+
+  const clerkUserId = user?.id;
 
   const testSupabaseConnection = async () => {
     try {
@@ -30,6 +34,7 @@ export default function TestPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-clerk-user-id': clerkUserId || '',
         },
         body: JSON.stringify({ action: 'test' }),
       });
@@ -83,6 +88,7 @@ export default function TestPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-clerk-user-id': clerkUserId || '',
         },
         body: JSON.stringify({ 
           action: 'chat',

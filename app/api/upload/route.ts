@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
-import { processFile, processImage } from '@/lib/media-processing'
+
+const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || 'http://localhost:8000'
 
 export async function POST(req: Request) {
   try {
+    const userId = req.headers.get('x-clerk-user-id')
     const formData = await req.formData()
     const file = formData.get('file') as File
-    const userId = formData.get('userId') as string
     const workspaceId = formData.get('workspaceId') as string
 
     if (!file || !userId || !workspaceId) {
@@ -15,15 +16,44 @@ export async function POST(req: Request) {
       )
     }
 
-    // Check if file is an image
-    const isImage = file.type.startsWith('image/')
-    
-    // Process the file based on its type
-    const result = isImage
-      ? await processImage(file, userId, workspaceId)
-      : await processFile(file, userId, workspaceId)
+    // Create a new FormData object for the Python service
+    const uploadFormData = new FormData()
+    uploadFormData.append('file', file)
+    uploadFormData.append('owner_id', userId)
 
-    return NextResponse.json(result)
+    // Upload file using the Python service
+    const uploadResponse = await fetch(`${PYTHON_SERVICE_URL}/api/upload-file`, {
+      method: 'POST',
+      body: uploadFormData,
+    })
+
+    if (!uploadResponse.ok) {
+      throw new Error('Failed to upload file to Python service')
+    }
+
+    const uploadResult = await uploadResponse.json()
+
+    // Process the uploaded file
+    const processResponse = await fetch(`${PYTHON_SERVICE_URL}/api/process-chunks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ fileName: file.name }),
+    })
+
+    if (!processResponse.ok) {
+      throw new Error('Failed to process file chunks')
+    }
+
+    const processResult = await processResponse.json()
+    console.log('Chunks processed:', processResult)
+
+    return NextResponse.json({ 
+      success: true, 
+      uploadResult,
+      processResult
+    })
   } catch (error) {
     console.error('Error in upload route:', error)
     return NextResponse.json(

@@ -5,13 +5,23 @@ import { useState } from 'react';
 type Message = {
   role: 'user' | 'assistant';
   content: string;
+  sources?: Source[];
+};
+
+type Source = {
+  id: string;
+  original_name: string;
+  chunk_id: string;
+  text: string;
+  similarity: number;
 };
 
 interface ChatInterfaceProps {
   workspaceId: string;
+  userId?: string;
 }
 
-export default function ChatInterface({ workspaceId }: ChatInterfaceProps) {
+export default function ChatInterface({ workspaceId, userId }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
@@ -22,7 +32,8 @@ export default function ChatInterface({ workspaceId }: ChatInterfaceProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return;
+    console.log('Sending message:', inputMessage);  
+    if (!inputMessage.trim() || !userId) return;
 
     const newMessage = { role: 'user' as const, content: inputMessage };
     setMessages(prev => [...prev, newMessage]);
@@ -30,27 +41,35 @@ export default function ChatInterface({ workspaceId }: ChatInterfaceProps) {
     setIsLoading(true);
 
     try {
-      // First get the media IDs for this workspace
-      const { data: mediaMappings, error: mappingError } = await fetch(`/api/getMediaMappings?workspaceId=${workspaceId}`)
-        .then(response => response.json());
+      const response = await fetch('http://24.45.173.113:8000/api/chat/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-clerk-user-id': userId,
+        },
+        body: JSON.stringify({
+          query: inputMessage,
+          workspace_id: workspaceId,
+          user_id: userId,
+          max_context_chunks: 5
+        }),
+      });
 
-      if (mappingError) throw mappingError;
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response from API:', errorData);
+        throw new Error(`Failed to get response from AI: ${errorData.detail || response.statusText}`);
+      }
 
-      const mediaIds = mediaMappings.map((mapping: { media_id: any; }) => mapping.media_id);
-
-      // Then get the chunks for these media items
-      const { data: chunks, error: chunksError } = await fetch(`/api/getChunks?mediaIds=${mediaIds.join(',')}`)
-        .then(response => response.json());
-
-      if (chunksError) throw chunksError;
-
-      // TODO: Implement semantic search and response generation
-      // For now, just echo back a response with some context
-      const response = {
-        role: 'assistant' as const,
-        content: `I received your message: "${inputMessage}". I have access to ${chunks?.length || 0} chunks of text from your workspace's media sources.`
+      const data = await response.json();
+      
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: data.answer,
+        sources: data.context_sources
       };
-      setMessages(prev => [...prev, response]);
+      
+      setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages(prev => [...prev, {
@@ -75,6 +94,20 @@ export default function ChatInterface({ workspaceId }: ChatInterfaceProps) {
             </div>
             <div className="flex-1 bg-white rounded-lg p-4 shadow-sm">
               <p className="text-[#1a1a1a]">{message.content}</p>
+              
+              {message.sources && message.sources.length > 0 && (
+                <div className="mt-4 border-t pt-2">
+                  <p className="text-sm text-gray-500 font-medium">Sources:</p>
+                  <ul className="text-xs text-gray-500 mt-1 space-y-1">
+                    {message.sources.map((source, idx) => (
+                      <li key={idx} className="flex items-start">
+                        <span className="mr-1">•</span>
+                        <span>{source.original_name} (similarity: {Math.round(source.similarity * 100)}%)</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -100,7 +133,11 @@ export default function ChatInterface({ workspaceId }: ChatInterfaceProps) {
             type="text"
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleSendMessage();
+              }
+            }}
             placeholder="Type your message..."
             className="flex-1 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6d63] focus:border-transparent text-[#1a1a1a] placeholder-gray-400"
           />

@@ -84,7 +84,7 @@ export default function ChatInterface({ workspaceId, userId }: ChatInterfaceProp
   return (
     <div className="flex-1 flex flex-col items-center bg-gray-50">
       {/* Chat Messages */}
-      <div className="flex-1 w-full max-w-3xl overflow-y-auto p-4 space-y-4 pb-8">
+      <div className="flex-1 w-full max-w-3xl overflow-y-auto p-4 space-y-4 pb-8" style={{ maxHeight: "80vh" }}>
         {messages.map((message, index) => (
           <div key={index} className="flex items-start space-x-3">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white ${

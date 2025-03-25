@@ -163,13 +163,14 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   }
 
   const onMediaAdded = (media: Media) => {
-    const newSource: DataSource = {
-      id: media.id,
-      name: media.name,
-      size: media.size?.toString() || 'Unknown',
-      addedDate: new Date(media.created_at).toLocaleDateString(),
-    };
-    setDataSources(prevSources => [...prevSources, newSource]);
+    // const newSource: DataSource = {
+    //   id: media.id,
+    //   name: media.name,
+    //   original_name: media.original_name,
+    //   size: media.size?.toString() || 'Unknown',
+    //   addedDate: new Date(media.created_at).toLocaleDateString(),
+    // };
+    // setDataSources(prevSources => [...prevSources, newSource]);
   };
 
   return (
@@ -213,7 +214,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             </div>
 
             {/* Chat Interface */}
-            <ChatInterface workspaceId={workspaceId} userId={user?.id || ''} />
+            <ChatInterface workspaceId={workspaceId || ''} userId={user?.id || ''} />
 
             {/* Add Data Source Modal */}
             {workspaceId && (

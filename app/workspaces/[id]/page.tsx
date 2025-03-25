@@ -5,6 +5,7 @@ import AddDataSourceModal from '@/app/components/AddDataSourceModal';
 import { createClient } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
 import { useRouter } from 'next/navigation';
+import { UserButton, useUser } from '@clerk/clerk-react';
 
 type Media = Database['public']['Tables']['media']['Row'] & {
   size?: number;
@@ -31,6 +32,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const [workspaces, setWorkspaces] = useState<Database['public']['Tables']['workspaces']['Row'][]>([]);
   const [workspaceNotFound, setWorkspaceNotFound] = useState(false);
   const router = useRouter();
+  const { user, isLoaded } = useUser();
 
   useEffect(() => {
     async function fetchData() {
@@ -39,10 +41,8 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         const resolvedParams = await params;
         setWorkspaceId(resolvedParams.id);
 
-        // Get user ID from localStorage
-        const userId = getUserIdFromStorage();
-        if (!userId) {
-          console.error('User ID not found in local storage');
+        if (!user || !isLoaded) {
+          console.error('User not authenticated');
           setLoading(false);
           return;
         }
@@ -54,7 +54,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
           .from('workspaces')
           .select('*')
           .eq('id', resolvedParams.id)
-          .eq('owner_id', userId)
+          .eq('owner_id', user.id)
           .single();
 
         if (workspacesError || !workspacesData) {
@@ -71,7 +71,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
           .from('media')
           .select('*')
           .eq('workspace_id', resolvedParams.id)
-          .eq('owner_id', userId);
+          .eq('owner_id', user.id);
 
         if (mediaError) {
           console.error('Error fetching media:', mediaError);
@@ -93,10 +93,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     }
 
     fetchData();
-  }, [params]); // Only depend on params
+  }, [params, user, isLoaded]);
 
   // Loading state
-  if (loading) {
+  if (loading || !isLoaded) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ff6d63]"></div>
@@ -149,6 +149,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
   return (
     <div className="flex h-full">
+      <div className="absolute top-4 right-4">
+        <UserButton afterSignOutUrl="/" />
+      </div>
       {workspaces.length > 0 && (
         <>
           {/* Data Sources Panel */}

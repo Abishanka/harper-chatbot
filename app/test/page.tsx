@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase';
 
 export default function TestPage() {
   const [supabaseStatus, setSupabaseStatus] = useState<string>('');
@@ -14,6 +14,7 @@ export default function TestPage() {
   const testSupabaseConnection = async () => {
     try {
       setSupabaseStatus('Testing Supabase connection...');
+      const supabase = createClient();
       const { data: workspaceData, error: workspaceError } = await supabase.from('workspaces').select('count');
       if (workspaceError) throw workspaceError;
       setSupabaseStatus('✅ Supabase connection to users and workspaces successful!');
@@ -62,7 +63,7 @@ export default function TestPage() {
       const fileExt = testFile.name.split('.').pop();
       const fileName = `test-${Math.random()}.${fileExt}`;
       const filePath = `test/${fileName}`;
-
+      const supabase = createClient();
       const { error: uploadError } = await supabase.storage
         .from('media')
         .upload(filePath, testFile);

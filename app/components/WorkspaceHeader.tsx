@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
+import { createClient } from '@/lib/supabase';
 
 type Workspace = Database['public']['Tables']['workspaces']['Row'];
 
@@ -11,6 +11,7 @@ export default function WorkspaceHeader({ workspaceId }: { workspaceId: string }
   const [loading, setLoading] = useState(true);
 
   const updateWorkspace = useCallback(async (workspaceId: string) => {
+    const supabase = createClient();
     const { data, error } = await supabase
       .from('workspaces')
       .select('*')

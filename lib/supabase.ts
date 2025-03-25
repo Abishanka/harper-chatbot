@@ -42,7 +42,7 @@ export async function checkWorkspaceExists(name: string) {
 }
 
 // Helper function to create a new workspace
-export async function createWorkspace(name: string) {
+export async function createWorkspace(name: string): Promise<boolean> {
   const supabase = createClient();
   const userId = getUserIdFromStorage();
   
@@ -61,6 +61,8 @@ export async function createWorkspace(name: string) {
 
   if (error) {
     console.error('Error creating workspace:', error);
-    throw error;
+    return false;
   }
+
+  return true;
 } 

@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Database } from '@/types/supabase';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -33,25 +31,16 @@ export default function ChatInterface({ workspaceId }: ChatInterfaceProps) {
 
     try {
       // First get the media IDs for this workspace
-      const { data: mediaMappings, error: mappingError } = await supabase
-        .from('media_workspace_mapping')
-        .select('media_id')
-        .eq('workspace_id', workspaceId);
+      const { data: mediaMappings, error: mappingError } = await fetch(`/api/getMediaMappings?workspaceId=${workspaceId}`)
+        .then(response => response.json());
 
       if (mappingError) throw mappingError;
 
-      const mediaIds = mediaMappings.map(mapping => mapping.media_id);
+      const mediaIds = mediaMappings.map((mapping: { media_id: any; }) => mapping.media_id);
 
       // Then get the chunks for these media items
-      const { data: chunks, error: chunksError } = await supabase
-        .from('chunks')
-        .select(`
-          chunk_text,
-          media:media_id (
-            name
-          )
-        `)
-        .in('media_id', mediaIds);
+      const { data: chunks, error: chunksError } = await fetch(`/api/getChunks?mediaIds=${mediaIds.join(',')}`)
+        .then(response => response.json());
 
       if (chunksError) throw chunksError;
 

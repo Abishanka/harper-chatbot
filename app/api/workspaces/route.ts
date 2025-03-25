@@ -17,7 +17,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'User ID and workspace name are required' }, { status: 400 });
     }
 
-    const success = await createWorkspace(userId, workspaceName);
+    const success = await createWorkspace(workspaceName);
     if (!success) {
         return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 });
     }

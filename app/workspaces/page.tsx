@@ -62,11 +62,17 @@ export default function WorkspaceHomePage() {
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
   const router = useRouter();
+  const { user } = useUser();
+
+  if (!user) {
+    console.error('User not authenticated');
+    return;
+  }
 
   const createWorkspace = async () => {
     if (!newWorkspaceName) return;
     
-    const ownerId = getUserIdFromStorage();
+    const ownerId = user.id;
     if (!ownerId) {
       console.error('User ID not found in local storage');
       return;
@@ -105,13 +111,18 @@ export default function WorkspaceHomePage() {
     router.push('/');
   };
 
+  if (!user) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="flex items-center justify-center h-full bg-gray-50 relative">
       <div className="absolute top-4 right-4">
         <UserButton afterSignOutUrl="/" />
       </div>
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-[#1a1a1a]">Select or Create a Workspace</h1>
+        <h1 className="text-3xl font-bold text-[#1a1a1a]">Welcome, {user.firstName}!</h1>
+        <p>Email: {user.emailAddresses[0].emailAddress}</p>
         <button 
           onClick={() => setIsModalOpen(true)}
           className="mt-4 px-6 py-2 bg-[#ff6d63] text-white rounded-lg hover:bg-[#ff857c] transition-colors"

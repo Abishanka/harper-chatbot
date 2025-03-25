@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
+import { createClient } from '@/lib/supabase';
 
 type Media = Database['public']['Tables']['media']['Row'];
 type MediaMapping = Database['public']['Tables']['media_workspace_mapping']['Row'] & {
@@ -13,8 +13,9 @@ export default function MediaSources({ workspaceId }: { workspaceId: string }) {
   const [media, setMedia] = useState<Media[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+   useEffect(() => {
     async function fetchMedia() {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('media_workspace_mapping')
         .select(`
@@ -34,7 +35,7 @@ export default function MediaSources({ workspaceId }: { workspaceId: string }) {
         return;
       }
 
-      const mediaItems = (data as MediaMapping[]).map(item => item.media);
+      const mediaItems = (data as unknown as MediaMapping[]).map(item => item.media);
       setMedia(mediaItems);
       setLoading(false);
     }

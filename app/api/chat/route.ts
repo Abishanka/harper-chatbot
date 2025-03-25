@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
+
+const supabaseClient = createClient();
 
 export async function POST(req: Request) {
   try {
@@ -17,7 +19,7 @@ export async function POST(req: Request) {
     })
 
     // Find relevant chunks using vector similarity
-    const { data: chunks, error: chunksError } = await supabase.rpc(
+    const { data: chunks, error: chunksError } = await supabaseClient.rpc(
       'match_chunks',
       {
         query_embedding: messageEmbedding.data[0].embedding,
@@ -30,7 +32,7 @@ export async function POST(req: Request) {
 
     // Get the media information for the chunks
     const mediaIds = [...new Set(chunks.map((chunk: any) => chunk.media_id))]
-    const { data: media, error: mediaError } = await supabase
+    const { data: media, error: mediaError } = await supabaseClient
       .from('media')
       .select('*')
       .in('id', mediaIds)

@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { createClient } from './supabase'
 import OpenAI from 'openai'
 import { Database } from '@/types/supabase'
 
@@ -9,6 +9,8 @@ const openai = new OpenAI({
 type Media = Database['public']['Tables']['media']['Row']
 type Chunk = Database['public']['Tables']['chunks']['Row']
 
+const supabaseClient = createClient()
+
 export async function processFile(file: File, userId: string, workspaceId: string) {
   try {
     // Upload file to Supabase Storage
@@ -16,14 +18,14 @@ export async function processFile(file: File, userId: string, workspaceId: strin
     const fileName = `${Math.random()}.${fileExt}`
     const filePath = `${userId}/${fileName}`
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabaseClient.storage
       .from('media')
       .upload(filePath, file)
 
     if (uploadError) throw uploadError
 
     // Create media record
-    const { data: media, error: mediaError } = await supabase
+    const { data: media, error: mediaError } = await supabaseClient
       .from('media')
       .insert({
         name: file.name,
@@ -36,7 +38,7 @@ export async function processFile(file: File, userId: string, workspaceId: strin
     if (mediaError) throw mediaError
 
     // Create media_workspace_mapping record
-    const { error: mappingError } = await supabase
+    const { error: mappingError } = await supabaseClient
       .from('media_workspace_mapping')
       .insert({
         media_id: media.id,
@@ -54,7 +56,7 @@ export async function processFile(file: File, userId: string, workspaceId: strin
     for (const chunk of chunks) {
       const embedding = await createEmbedding(chunk)
       
-      const { error: chunkError } = await supabase
+      const { error: chunkError } = await supabaseClient
         .from('chunks')
         .insert({
           chunk_text: chunk,
@@ -79,7 +81,7 @@ export async function processImage(file: File, userId: string, workspaceId: stri
     const fileName = `${Math.random()}.${fileExt}`
     const filePath = `${userId}/${fileName}`
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabaseClient.storage
       .from('media')
       .upload(filePath, file)
 
@@ -89,7 +91,7 @@ export async function processImage(file: File, userId: string, workspaceId: stri
     const imageDescription = await generateImageDescription(file)
 
     // Create media record
-    const { data: media, error: mediaError } = await supabase
+    const { data: media, error: mediaError } = await supabaseClient
       .from('media')
       .insert({
         name: file.name,
@@ -102,7 +104,7 @@ export async function processImage(file: File, userId: string, workspaceId: stri
     if (mediaError) throw mediaError
 
     // Create media_workspace_mapping record
-    const { error: mappingError } = await supabase
+    const { error: mappingError } = await supabaseClient
       .from('media_workspace_mapping')
       .insert({
         media_id: media.id,
@@ -116,7 +118,7 @@ export async function processImage(file: File, userId: string, workspaceId: stri
     const embedding = await createEmbedding(imageDescription)
 
     // Store chunk with image description
-    const { error: chunkError } = await supabase
+    const { error: chunkError } = await supabaseClient
       .from('chunks')
       .insert({
         chunk_text: imageDescription,

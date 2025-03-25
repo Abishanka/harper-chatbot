@@ -4,8 +4,11 @@ import { useState, useEffect } from 'react';
 import AddDataSourceModal from '@/app/components/AddDataSourceModal';
 import { createClient } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
+import { useRouter } from 'next/navigation';
 
-type Media = Database['public']['Tables']['media']['Row'];
+type Media = Database['public']['Tables']['media']['Row'] & {
+  size?: number;
+};
 
 type DataSource = {
   id: string;
@@ -14,63 +17,134 @@ type DataSource = {
   addedDate: string;
 };
 
+// Helper function to get user ID from localStorage
+function getUserIdFromStorage() {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('clerk-user-id');
+}
+
 export default function WorkspacePage({ params }: { params: Promise<{ id: string }> }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<Database['public']['Tables']['workspaces']['Row'][]>([]);
+  const [workspaceNotFound, setWorkspaceNotFound] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchData() {
-      setLoading(true);
-      const resolvedParams = await params;
-      setWorkspaceId(resolvedParams.id);
+      try {
+        setLoading(true);
+        const resolvedParams = await params;
+        setWorkspaceId(resolvedParams.id);
 
-      const supabase = createClient();
+        // Get user ID from localStorage
+        const userId = getUserIdFromStorage();
+        if (!userId) {
+          console.error('User ID not found in local storage');
+          setLoading(false);
+          return;
+        }
 
-      const { data: workspacesData, error: workspacesError } = await supabase
-        .from('workspaces')
-        .select('*')
-        .eq('id', resolvedParams.id);
+        const supabase = createClient();
 
-      if (workspacesError || !workspacesData || workspacesData.length === 0) {
-        console.error('Workspace not found:', workspacesError);
+        // First, check if the workspace exists and belongs to the user
+        const { data: workspacesData, error: workspacesError } = await supabase
+          .from('workspaces')
+          .select('*')
+          .eq('id', resolvedParams.id)
+          .eq('owner_id', userId)
+          .single();
+
+        if (workspacesError || !workspacesData) {
+          console.error('Workspace not found or unauthorized:', workspacesError);
+          setLoading(false);
+          setWorkspaceNotFound(true);
+          return;
+        }
+
+        setWorkspaces([workspacesData]);
+
+        // Then fetch the media data for this workspace
+        const { data: mediaData, error: mediaError } = await supabase
+          .from('media')
+          .select('*')
+          .eq('workspace_id', resolvedParams.id)
+          .eq('owner_id', userId);
+
+        if (mediaError) {
+          console.error('Error fetching media:', mediaError);
+        } else {
+          const formattedDataSources: DataSource[] = (mediaData || []).map(media => ({
+            id: media.id,
+            name: media.name,
+            size: media.size?.toString() || 'Unknown',
+            addedDate: new Date(media.created_at).toLocaleDateString()
+          }));
+          setDataSources(formattedDataSources);
+        }
+      } catch (error) {
+        console.error('Error in fetchData:', error);
+        setWorkspaceNotFound(true);
+      } finally {
         setLoading(false);
-        return <div>404 Not Found</div>;
       }
-
-      setWorkspaces(workspacesData);
-
-      const { data: mediaData, error: mediaError } = await supabase
-        .from('media')
-        .select('*')
-        .eq('owner_id', resolvedParams.id);
-
-      if (mediaError) {
-        console.error('Error fetching media:', mediaError);
-      } else {
-        setDataSources(mediaData);
-      }
-
-      setLoading(false);
     }
 
     fetchData();
-  }, [params]);
+  }, [params]); // Only depend on params
 
-  if (loading) return <div>Loading...</div>;
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ff6d63]"></div>
+      </div>
+    );
+  }
 
-  if (!workspaceId) return <div>404 Not Found</div>;
+  // Not found state
+  if (workspaceNotFound) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-50">
+        <div className="text-center">
+          <div className="text-6xl mb-4 text-[#ff6d63]">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="1.5"
+              stroke="currentColor"
+              className="w-16 h-16 mx-auto"
+            >
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.007v-.008H12v.008z" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-bold text-[#1a1a1a]">Workspace Not Found</h1>
+          <p className="text-gray-600 mt-2">
+            The workspace you are looking for does not exist or you don't have access to it.
+          </p>
+          <button
+            onClick={() => router.push('/workspaces')}
+            className="mt-4 px-4 py-2 bg-[#ff6d63] text-white rounded-lg hover:bg-[#ff857c] transition-colors"
+          >
+            Return to Workspaces
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const onMediaAdded = (media: Media) => {
     const newSource: DataSource = {
       id: media.id,
       name: media.name,
-      size: 'Unknown', // You might want to calculate or fetch the actual size
+      size: media.size?.toString() || 'Unknown',
       addedDate: new Date(media.created_at).toLocaleDateString(),
     };
-    setDataSources((prevSources) => [...prevSources, newSource]);
+    setDataSources(prevSources => [...prevSources, newSource]);
   };
 
   return (
@@ -89,13 +163,13 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
               </button>
             </div>
             <div className="space-y-2">
-              {workspaces.map((workspace) => (
-                <div key={workspace.id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+              {dataSources.map((source) => (
+                <div key={source.id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-[#1a1a1a]">{workspace.name}</span>
-                    <span className="text-xs text-gray-600">{workspace.description || 'No description'}</span>
+                    <span className="text-sm font-medium text-[#1a1a1a]">{source.name}</span>
+                    <span className="text-xs text-gray-600">{source.size}</span>
                   </div>
-                  <div className="mt-1 text-xs text-gray-600">Created at {new Date(workspace.created_at).toLocaleDateString()}</div>
+                  <div className="mt-1 text-xs text-gray-600">Added {source.addedDate}</div>
                 </div>
               ))}
             </div>
@@ -105,7 +179,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
           <div className="flex-1 flex flex-col items-center bg-gray-50">
             {/* Chat Header */}
             <div className="w-full max-w-3xl p-4">
-              <h2 className="text-xl font-semibold text-[#1a1a1a]">Research Papers Chat</h2>
+              <h2 className="text-xl font-semibold text-[#1a1a1a]">
+                {workspaces[0]?.name || 'Workspace'}
+              </h2>
             </div>
 
             {/* Chat Messages */}

@@ -44,13 +44,17 @@ export default function AddDataSourceModal({
   const fetchAvailableSources = async () => {
     try {
       const supabaseClient = createClient();
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) return;
+      
+      // Get user ID from localStorage instead of Supabase auth
+      const userId = typeof window !== 'undefined' ? localStorage.getItem('clerk-user-id') : null;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
 
       const { data: media, error } = await supabaseClient
         .from('media')
         .select('*')
-        .eq('owner_id', user.id)
+        .eq('owner_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -81,14 +85,17 @@ export default function AddDataSourceModal({
     setError(null);
 
     try {
+      // Get user ID from localStorage instead of Supabase auth
+      const userId = typeof window !== 'undefined' ? localStorage.getItem('clerk-user-id') : null;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+      
       const supabaseClient = createClient();
       const formData = new FormData();
       formData.append('file', file);
       formData.append('workspaceId', workspaceId);
-
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-      formData.append('userId', user.id);
+      formData.append('userId', userId);
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -110,16 +117,19 @@ export default function AddDataSourceModal({
 
   const handleAddExistingSource = async (media: Media) => {
     try {
+      // Get user ID from localStorage instead of Supabase auth
+      const userId = typeof window !== 'undefined' ? localStorage.getItem('clerk-user-id') : null;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+      
       const supabaseClient = createClient();
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
       const { error: mappingError } = await supabaseClient
         .from('media_workspace_mapping')
         .insert({
           media_id: media.id,
           workspace_id: workspaceId,
-          added_by: user.id,
+          added_by: userId,
         });
 
       if (mappingError) throw mappingError;
